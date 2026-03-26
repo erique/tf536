@@ -18,14 +18,16 @@ ifndef SUFFIX
     SUFFIX=_$(SERIALNO)
 endif
 
-UNAME := $(shell uname)
-XILINXENV:=
 SRCROOT:=$(abspath $(PWD)/../../)
 BRDROOT:=$(subst $(SRCROOT),,$(abspath $(PWD)))
 DOCKERIMAGE:=terriblefire78/xilinx:v1
 
-ifneq ($(UNAME), Linux)
-      XILINXENV=docker run --rm --platform linux/amd64 -v $(SRCROOT):/host -w /host/$(BRDROOT) $(DOCKERIMAGE)
+# Use local Xilinx tools if available, otherwise fall back to Docker
+XILINX_LOCAL:=/opt/Xilinx/10.1/ISE/bin/lin64/xst
+ifeq ($(shell test -x $(XILINX_LOCAL) && echo yes),yes)
+      XILINXENV:=
+else
+      XILINXENV:=docker run --rm --platform linux/amd64 -u $(shell id -u):$(shell id -g) -v $(SRCROOT):/host -w /host/$(BRDROOT) $(DOCKERIMAGE)
 endif
 
 .PHONY: $(ROMFOLDER)/bootrom.v
