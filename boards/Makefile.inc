@@ -7,7 +7,7 @@ ROMFOLDER=../../rom/
 
 TOOLSFOLDER=../../utils/
 DRIVERSFOLDER=../../drivers/
-SOURCES="./$(BOARD)r$(REVISION)_main_top.v $(RTLFOLDER)/main_top.v $(RTLFOLDER)/m6800.v $(RTLFOLDER)/intreqr.v $(RTLFOLDER)/interrupt.v $(RTLFOLDER)/ata.v $(RTLFOLDER)/clocks.v $(RTLFOLDER)/autoconfig.v $(RTLFOLDER)/gayle.v $(RTLFOLDER)/sdram.v $(RTLFOLDER)/sdram_init.v $(RTLFOLDER)/bootrom.v $(RTLFOLDER)/bus.v" 
+SOURCES="./$(BOARD)r$(REVISION)_main_top.v $(RTLFOLDER)/main_top.v $(RTLFOLDER)/m6800.v $(RTLFOLDER)/intreqr.v $(RTLFOLDER)/interrupt.v $(RTLFOLDER)/ata.v $(RTLFOLDER)/x68k.v $(RTLFOLDER)/clocks.v $(RTLFOLDER)/clocks_x68k.v $(RTLFOLDER)/autoconfig.v $(RTLFOLDER)/gayle.v $(RTLFOLDER)/sdram.v $(RTLFOLDER)/sdram_init.v $(RTLFOLDER)/bootrom.v $(RTLFOLDER)/bus.v" 
 
 ifndef SERIALNO
     SERIALNO=1000

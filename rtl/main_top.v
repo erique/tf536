@@ -108,6 +108,22 @@ reg SPEED_D;
 
 wire CLK7M;
 
+`ifdef X68K
+wire CPU_SLOW;
+
+clocks_x68k # (
+           .CLOCK_PHASE(CLOCK_PHASE)
+       )
+       CLOCKS(
+
+           .CLK100M ( CLK100M ),
+           .CLK7M_RAW  ( CLK7M_RAW   ),
+           .CLK7M   ( CLK7M), // clean 7M clock
+           .SPEED   ( SPEED_D ),
+           .CLKCPU  ( CLKCPU  ),
+           .CPUSLOW ( CPU_SLOW )
+       );
+`else
 clocks # (
            .CLOCK_PHASE(CLOCK_PHASE)
        )
@@ -119,6 +135,7 @@ clocks # (
            .SPEED   ( SPEED_D ),
            .CLKCPU  ( CLKCPU  )
        );
+`endif
 
 wire DSACK1_SYNC;
 wire VMA_INT;
@@ -133,6 +150,43 @@ m6800 M6800BUS(
           .E		( E				),
           .DSACK1	( DSACK1_SYNC 	)
       );
+
+`ifdef X68K
+
+// The X68000 address map, boot ROM and ATA task file (x68k.v). The Amiga
+// glue (Gayle, Zorro II autoconfig, INTREQR) is tied off.
+wire GAYLE_INT2 = 1'b0;
+wire GAYLE_ACCESS = 1'b1;
+wire gayle_dout = 1'b0;
+reg   GAYLE_DS;
+wire ram_decode;
+wire zii_decode = 1'b1;
+wire [7:4] zii_dout = 4'd0;
+wire rom_decode;
+wire [15:0] rom_dout;
+wire DSACK_INTREQR = 1'b1;
+wire WAIT_INTREQR = 1'b0;
+wire BUSEN_INTREQR = 1'b0;
+
+x68k X68K (
+        .CLK             ( CLKCPU          ),
+        .AS              ( AS30            ),
+        .RW              ( RW30            ),
+        .A               ( A               ),
+        .ram_decode      ( ram_decode      ),
+        .rom_decode      ( rom_decode      ),
+        .rom_dout        ( rom_dout        ),
+        .IDECS           ( IDECS           ),
+        .IOR             ( IOR             ),
+        .IOW             ( IOW             ),
+        .DTACK_IDE       ( DTACK_IDE       ),
+        .GAYLE_IDE       ( GAYLE_IDE       )
+    );
+
+// Host strobes stay off while AS30 is high.
+wire strobe_idle = AS30;
+
+`else
 
 // module to control IDE timings.
 ata ATA (
@@ -201,6 +255,10 @@ wire [7:4] zii_dout;
                                 .DECODE ( ram_decode    )
                             );
 
+wire strobe_idle = 1'b0;
+
+`endif // X68K
+
              reg ram_access;
 wire WAIT;
 
@@ -244,6 +302,8 @@ sdram SDRAM (
 
 
 reg rom_access;
+
+`ifndef X68K
 
 `ifndef CDTV
 wire rom_decode = ({A[31:14]} != {16'h00F0, 2'b00});
@@ -295,6 +355,8 @@ wire BUSEN_INTREQR;
              .INT    ( GAYLE_INT2)
                            );
 
+`endif // X68K
+
 
              reg intcycle_dout = 1'b0;
 reg fastcycle_int;
@@ -325,12 +387,54 @@ reg [1:0] AS_RESYNC = 2'b00;
 
 reg BUSEN_D;
 reg DTACK_D;
+`ifdef X68K
+always @(posedge CLKCPU or posedge AS30) begin
+
+    if (AS30 == 1'b1) begin
+
+        DTACK_D <= 1'b1;
+
+    end else begin
+
+        DTACK_D <= DTACK_D & (DTACK | DS30 | ~PUNT_INT | (|AS_RESYNC));
+
+    end
+
+end
+`endif
 
 reg AS_D;
 reg LDS_D;
 reg UDS_D;
 
-wire PUNT_COMB = GAYLE_ACCESS & ram_decode & rom_decode & GAYLE_IDE & zii_decode;
+wire PUNT_COMB = (GAYLE_ACCESS & ram_decode & rom_decode & GAYLE_IDE & zii_decode) | strobe_idle;
+
+`ifdef X68K
+
+// SPEED_D, CLK7M (dpll_out) and CPU_SLOW are all CLK100M-domain registers,
+// so the host-cycle resync gate runs entirely in the CLK100M domain with a
+// registered CLK7M edge detect. No clock-domain crossing, no async reset:
+// a spurious host AS cannot be produced by a mode-switch hazard.
+reg CLK7M_EDGE = 1'b0;
+
+always @(posedge CLK100M) begin
+
+    CLK7M_EDGE <= CLK7M;
+
+    if (SPEED_D == 1'b0) begin
+
+        AS_RESYNC <= 2'b11;
+
+    end else if (CLK7M & ~CLK7M_EDGE) begin
+
+        // when writing the the signals are asserted in 7Mhz S4
+        AS_RESYNC <= {AS_RESYNC[0], 1'b0};
+
+    end
+
+end
+
+`else
 
 always @(posedge CLK7M or negedge SPEED_D) begin
 
@@ -346,6 +450,8 @@ always @(posedge CLK7M or negedge SPEED_D) begin
     end
 
 end
+
+`endif // X68K
 
 
 always @(posedge CLK7M) begin
@@ -366,6 +472,7 @@ always @(posedge CLK100M) begin
     PUNT_INT <= PUNT_COMB;
     SPEED_D <= ~AS30 & ram_decode & GAYLE_IDE & GAYLE_ACCESS | CPUSPACE | ~BGACK_INT | ~RESET;
     
+`ifndef X68K
     if (AS30 == 1'b1) begin 
         DTACK_D <= 1'b1;
     end else begin 
@@ -373,11 +480,22 @@ always @(posedge CLK100M) begin
     end 
 
     BUSEN_D <= AS_D | BUSEN_INTREQR;
+`else
+    BUSEN_D <= (AS30 | ~PUNT_INT | ~PUNT_COMB | FPUOP | ~CPU_SLOW | AS_RESYNC[0]) | BUSEN_INTREQR;
+`endif
 
     // resync if necessary
+`ifdef X68K
+    // Host strobes assert only once the CPU runs on the slow DPLL clock
+    // (CPU_SLOW), never mid fast-clock activity.
+    AS_D <= AS30 | ~PUNT_INT | ~PUNT_COMB | FPUOP | ~CPU_SLOW | AS_RESYNC[0];
+    UDS_D <= DS30 | A[0] | ~CPU_SLOW | AS_RESYNC[0] | ~RW30 & AS_RESYNC[1];
+    LDS_D <= DS30 | ({A[0], SIZ[1:0]} == 3'b001) | ~CPU_SLOW | AS_RESYNC[0] | ~RW30 & AS_RESYNC[1];
+`else
     AS_D <= AS30 | ~PUNT_INT | FPUOP | AS_RESYNC[0];
     UDS_D <= DS30 | A[0] | AS_RESYNC[0] | ~RW30 & AS_RESYNC[1];
     LDS_D <= DS30 | ({A[0], SIZ[1:0]} == 3'b001)  | AS_RESYNC[0] | ~RW30 & AS_RESYNC[1];
+`endif
 
 end
 
@@ -390,9 +508,9 @@ assign D[15:0] = intcycle_dout ? data_out : {16{1'bz}};
 
 assign DSACK = {FASTCYCLE & DTACK_D & DSACK1_SYNC & DTACK_IDE & DSACK_INTREQR, 1'b1} | {WAIT_INTREQR & DSACK_INTREQR, 1'b1 };
 
-assign AS = HIGHZ ? AS_D : 1'bz;
-assign LDS = HIGHZ ? LDS_D : 1'bz;
-assign UDS = HIGHZ ? UDS_D : 1'bz;
+assign AS = HIGHZ ? (AS_D | strobe_idle) : 1'bz;
+assign LDS = HIGHZ ? (LDS_D | strobe_idle) : 1'bz;
+assign UDS = HIGHZ ? (UDS_D | strobe_idle) : 1'bz;
 assign VMA = HIGHZ ? VMA_INT : 1'bz;
 
 assign AVEC = AVEC_INT;
@@ -401,12 +519,12 @@ assign AVEC = AVEC_INT;
 assign BERR = CPCS_INT ? 1'bz : 1'b0;
 
 assign CLKRAM = CLK100M;
-assign BUSEN = BUSEN_D;
+assign BUSEN = BUSEN_D | strobe_idle;
 
 assign D[15:0] = {16{1'bz}};
 assign IPL[2:0] = 3'bzzz;
 
-assign BG = BG30 | AS_RESYNC[0];
+assign BG = BG30 | (AS_RESYNC[0] & ~strobe_idle);
 assign BR30 = BR;
 assign BGACK30 = BGACK;
 

@@ -41,8 +41,9 @@ The TF536 firmware supports two different target platforms, selected at compile 
 
 - **A500**: Amiga 500 configuration
 - **CDTV**: Commodore CDTV configuration (different ROM decode)
+- **X68K**: Sharp X68000 (68000 socket, 10MHz host bus)
 
-Each platform has specific CPLD defines (`A500`, `CDTV`) that customize the memory map and bus interface behavior.
+Each platform has specific CPLD defines (`A500`, `CDTV`, `X68K`) that customize the memory map and bus interface behavior.
 
 ## Hardware Revisions
 
@@ -75,12 +76,14 @@ tf536/
 ├── rtl/                    # Verilog RTL source code
 │   ├── main_top.v         # Top-level CPLD module (parametric)
 │   ├── clocks.v           # Clock generation and CPU speed control
+│   ├── clocks_x68k.v      # X68000 CPU clock (DPLL, fast clock)
 │   ├── sdram.v            # SDRAM controller with burst support
 │   ├── sdram_init.v       # SDRAM initialization state machine
 │   ├── autoconfig.v       # Amiga Zorro-II autoconfiguration
 │   ├── bus.v              # Bus delay and arbitration logic
 │   ├── m6800.v            # Motorola 6800 peripheral bus timing
 │   ├── ata.v              # IDE/ATA interface controller
+│   ├── x68k.v             # X68000 address map
 │   ├── gayle.v            # Amiga Gayle IDE chipset emulation
 │   ├── interrupt.v        # Interrupt level management
 │   ├── intreqr.v          # Interrupt request register patching
@@ -152,6 +155,7 @@ This compiles CPLD firmware for both platforms using the XC95288XL CPLD:
 cd boards/tf536r2
 make a500      # Amiga 500
 make cdtv      # Commodore CDTV
+make x68k      # Sharp X68000 (XC95288XL only)
 ```
 
 Output: `.jed` (JEDEC programming files) and `.svf` (Serial Vector Format)
@@ -163,7 +167,7 @@ Key Makefile variables (used internally by `boards/tf536r2/Makefile`):
 ```makefile
 CHIPSIZE=288        # XC95288XL CPLD
 CLOCK_PHASE=7       # Clock phase alignment (0-7)
-TARGET=A500         # Platform target (A500, CDTV)
+TARGET=A500         # Platform target (A500, CDTV, X68K)
 ```
 
 ### Clean Build Artifacts
@@ -265,6 +269,10 @@ make clean       # Remove all generated files
 
 **CDTV Configuration:**
 - ROM decode disabled at `$00F00000` (see `main_top.v:268-272`)
+
+**X68000 Configuration:**
+- `$00000000-$00FFFFFF`: Host bus
+- Full map: header of `rtl/x68k.v`
 
 ## Testing
 
