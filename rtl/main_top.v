@@ -167,6 +167,8 @@ wire [15:0] rom_dout;
 wire DSACK_INTREQR = 1'b1;
 wire WAIT_INTREQR = 1'b0;
 wire BUSEN_INTREQR = 1'b0;
+wire host_cacheable;
+wire host_read_widen;
 
 x68k X68K (
         .CLK             ( CLKCPU          ),
@@ -176,6 +178,8 @@ x68k X68K (
         .ram_decode      ( ram_decode      ),
         .rom_decode      ( rom_decode      ),
         .rom_dout        ( rom_dout        ),
+        .host_cacheable  ( host_cacheable  ),
+        .host_read_widen ( host_read_widen ),
         .IDECS           ( IDECS           ),
         .IOR             ( IOR             ),
         .IOW             ( IOW             ),
@@ -255,12 +259,17 @@ wire [7:4] zii_dout;
                                 .DECODE ( ram_decode    )
                             );
 
+wire host_cacheable = 1'b0;
+wire host_read_widen = 1'b0;
 wire strobe_idle = 1'b0;
 
 `endif // X68K
 
              reg ram_access;
 wire WAIT;
+wire CIIN_RAM;
+
+assign CIIN = CIIN_RAM | host_cacheable;
 
 sdram SDRAM (
 
@@ -280,7 +289,7 @@ sdram SDRAM (
           .DS30(DS30),
 
           .CBACK(CBACK),
-          .CIIN(CIIN),
+          .CIIN(CIIN_RAM),
           .CBREQ(CBREQ),
 
           .STERM(STERM),
@@ -489,8 +498,8 @@ always @(posedge CLK100M) begin
     // Host strobes assert only once the CPU runs on the slow DPLL clock
     // (CPU_SLOW), never mid fast-clock activity.
     AS_D <= AS30 | ~PUNT_INT | ~PUNT_COMB | FPUOP | ~CPU_SLOW | AS_RESYNC[0];
-    UDS_D <= DS30 | A[0] | ~CPU_SLOW | AS_RESYNC[0] | ~RW30 & AS_RESYNC[1];
-    LDS_D <= DS30 | ({A[0], SIZ[1:0]} == 3'b001) | ~CPU_SLOW | AS_RESYNC[0] | ~RW30 & AS_RESYNC[1];
+    UDS_D <= DS30 | (A[0] & ~host_read_widen) | ~CPU_SLOW | AS_RESYNC[0] | ~RW30 & AS_RESYNC[1];
+    LDS_D <= DS30 | (({A[0], SIZ[1:0]} == 3'b001) & ~host_read_widen) | ~CPU_SLOW | AS_RESYNC[0] | ~RW30 & AS_RESYNC[1];
 `else
     AS_D <= AS30 | ~PUNT_INT | FPUOP | AS_RESYNC[0];
     UDS_D <= DS30 | A[0] | AS_RESYNC[0] | ~RW30 & AS_RESYNC[1];

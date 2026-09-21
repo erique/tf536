@@ -106,7 +106,11 @@ reg BURSTING = 1'b0;
 reg [1:0] BCOUNT = 2'b11;
 
 // a read cycle at a tag aligned address.
+`ifdef X68K
+wire CAN_BURST = 1'b1; // no burst — CLKCPU too slow to handshake per-beat
+`else
 wire CAN_BURST = ({A[3:2]} != 2'b00) | CBREQ | ACCESS | ~RW30;
+`endif
 wire [1:0] RAMA = BURSTING ? {A[3:2]} : BCOUNT;
 
 wire BURST_ENDING = (BCOUNT == 2'b11) | BURSTING;
@@ -231,6 +235,20 @@ always @(posedge CLK or negedge RESET) begin
 
 end
 
+`ifdef X68K
+// Stretched ready flag: latches low when WAIT_BLOCK goes low (data ready),
+// stays low until AS30 deasserts. Ensures the slow 10MHz CLKCPU catches it.
+reg sterm_ready = 1;
+always @(posedge CLK or negedge RESET) begin
+    if (!RESET)
+        sterm_ready <= 1'b1;
+    else if (AS30)
+        sterm_ready <= 1'b1;
+    else if (!WAIT_BLOCK)
+        sterm_ready <= 1'b0;
+end
+`endif
+
 always @(posedge CLKCPU or posedge AS30) begin
 
     if (AS30 == 1'b1) begin
@@ -240,8 +258,13 @@ always @(posedge CLKCPU or posedge AS30) begin
 
     end else begin
 
+`ifdef X68K
+        WAITSTATE <= ACCESS | DS30 | sterm_ready;
+        STERM_D <= sterm_ready;
+`else
         WAITSTATE <= ACCESS | DS30 | WAIT_BLOCK;
         STERM_D <= WAIT_BLOCK;
+`endif
 
     end
 end

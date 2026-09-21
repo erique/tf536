@@ -271,8 +271,9 @@ make clean       # Remove all generated files
 - ROM decode disabled at `$00F00000` (see `main_top.v:268-272`)
 
 **X68000 Configuration:**
-- `$00000000-$00FFFFFF`: Host bus
-- Full map: header of `rtl/x68k.v`
+- `$00000000-$00FFFFFF`: Host bus (main RAM and ROMs cacheable)
+- `$10000000-$13FFFFFF`: Fast RAM (SDRAM)
+- Full map and mirrors: header of `rtl/x68k.v`
 
 ## Testing
 
