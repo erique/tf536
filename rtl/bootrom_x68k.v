@@ -66,10 +66,10 @@ always @(posedge clk) begin
 		7'd56:	data	<=	16'h2d30;
 		7'd57:	data	<=	16'h392d;
 		7'd58:	data	<=	16'h3238;
-		7'd59:	data	<=	16'h5f39;
-		7'd60:	data	<=	16'h3063;
-		7'd61:	data	<=	16'h6464;
-		7'd62:	data	<=	16'h3639;
+		7'd59:	data	<=	16'h5f38;
+		7'd60:	data	<=	16'h3033;
+		7'd61:	data	<=	16'h6130;
+		7'd62:	data	<=	16'h3937;
 		default:	data	<=	16'd0;
 	endcase
 end
