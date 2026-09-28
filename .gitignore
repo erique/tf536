@@ -24,3 +24,4 @@ fancontrol
 lightcontrol
 work
 xlnx_auto*
+__pycache__/

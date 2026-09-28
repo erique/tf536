@@ -41,7 +41,7 @@ The TF536 firmware supports two different target platforms, selected at compile 
 
 - **A500**: Amiga 500 configuration
 - **CDTV**: Commodore CDTV configuration (different ROM decode)
-- **X68K**: Sharp X68000 (68000 socket, 10MHz host bus)
+- **X68K**: Sharp X68000 (68000 socket, 10MHz host bus, ATA card boot chain in `rom/x68k/`)
 
 Each platform has specific CPLD defines (`A500`, `CDTV`, `X68K`) that customize the memory map and bus interface behavior.
 
@@ -84,14 +84,18 @@ tf536/
 │   ├── m6800.v            # Motorola 6800 peripheral bus timing
 │   ├── ata.v              # IDE/ATA interface controller
 │   ├── x68k.v             # X68000 address map
+│   ├── x68k_ata.v         # X68000 ATA task file
 │   ├── gayle.v            # Amiga Gayle IDE chipset emulation
 │   ├── interrupt.v        # Interrupt level management
 │   ├── intreqr.v          # Interrupt request register patching
-│   └── bootrom.v          # Boot ROM (auto-generated from assembly)
+│   ├── bootrom.v          # Boot ROM (auto-generated from assembly)
+│   └── bootrom_x68k.v     # X68000 boot ROM (auto-generated from rom/x68k)
 ├── rom/                    # Boot ROM assembly source
 │   ├── bootrom.asm        # 68k assembly boot code
 │   ├── bin2vrlg           # Binary to Verilog converter (Python 3)
-│   └── Makefile           # ROM build automation
+│   ├── vasm.mk            # Assembler setup (local vasm or Docker)
+│   ├── Makefile           # ROM build automation
+│   └── x68k/              # X68000 boot chain, TFIDE and card tool
 ├── boards/                 # Board-specific build configurations
 │   ├── tf536r1/           # Revision 1 board files
 │   ├── tf536r2/           # Revision 2 board files (current)
@@ -137,6 +141,9 @@ make
 ```
 
 Generates `bootrom.v` from `bootrom.asm` with embedded version string.
+
+For the X68000, `make -C rom/x68k` generates `bootrom_x68k.v` from
+`rom/x68k/bootrom.asm` and builds the card firmware (`rom/x68k/README.md`).
 
 ### Build All Platforms
 
@@ -272,8 +279,9 @@ make clean       # Remove all generated files
 
 **X68000 Configuration:**
 - `$00000000-$00FFFFFF`: Host bus (main RAM and ROMs cacheable)
+- `$00EA8000-$00EA9FFF`: Card window (ATA task file, boot ROM at `$EA8800`)
 - `$10000000-$13FFFFFF`: Fast RAM (SDRAM)
-- Full map and mirrors: header of `rtl/x68k.v`
+- Full map, SRAM overlay and mirrors: header of `rtl/x68k.v`
 
 ## Testing
 

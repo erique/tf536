@@ -187,8 +187,10 @@ x68k X68K (
         .GAYLE_IDE       ( GAYLE_IDE       )
     );
 
-// Host strobes stay off while AS30 is high.
+// Host strobes stay off while AS30 is high (strobe_idle); ATA cycles stay
+// on the slow clock (speed_ide).
 wire strobe_idle = AS30;
+wire speed_ide = 1'b1;
 
 `else
 
@@ -262,6 +264,7 @@ wire [7:4] zii_dout;
 wire host_cacheable = 1'b0;
 wire host_read_widen = 1'b0;
 wire strobe_idle = 1'b0;
+wire speed_ide = GAYLE_IDE;
 
 `endif // X68K
 
@@ -479,7 +482,7 @@ always @(posedge CLK100M) begin
     HIGHZ <= PUNT_INT & BGACK30;
 
     PUNT_INT <= PUNT_COMB;
-    SPEED_D <= ~AS30 & ram_decode & GAYLE_IDE & GAYLE_ACCESS | CPUSPACE | ~BGACK_INT | ~RESET;
+    SPEED_D <= ~AS30 & ram_decode & speed_ide & GAYLE_ACCESS | CPUSPACE | ~BGACK_INT | ~RESET;
     
 `ifndef X68K
     if (AS30 == 1'b1) begin 
